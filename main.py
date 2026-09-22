@@ -5,6 +5,7 @@ import time
 from pathlib import Path
 from typing import Any
 
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, Form, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
@@ -178,7 +179,13 @@ QUIZ = [
     },
 ]
 
-app = FastAPI(title='Алхимик — квиз')
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    init_db()
+    yield
+
+
+app = FastAPI(title='Алхимик — квиз', lifespan=lifespan)
 app.mount('/static', StaticFiles(directory=BASE_DIR / 'static'), name='static')
 templates = Jinja2Templates(directory=BASE_DIR / 'templates')
 
@@ -259,9 +266,11 @@ def public_question(state: dict[str, Any]) -> dict[str, Any] | None:
     return q
 
 
-@app.on_event('startup')
-def startup() -> None:
-    init_db()
+
+
+@app.get('/health')
+async def health():
+    return JSONResponse({'ok': True})
 
 
 @app.get('/', response_class=HTMLResponse)
