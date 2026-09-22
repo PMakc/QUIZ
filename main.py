@@ -270,7 +270,7 @@ def public_question(state: dict[str, Any]) -> dict[str, Any] | None:
 
 @app.get('/health')
 async def health():
-    return JSONResponse({'ok': True})
+    return JSONResponse({'ok': True, 'version': 'bothost-v3'})
 
 
 @app.get('/', response_class=HTMLResponse)
