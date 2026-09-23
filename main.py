@@ -294,7 +294,7 @@ def evaluate(q: dict[str, Any], value: str) -> bool:
 
 @app.get('/health')
 async def health():
-    return JSONResponse({'ok': True, 'version': 'bothost-v6'})
+    return JSONResponse({'ok': True, 'version': 'bothost-v7'})
 
 @app.get('/favicon.ico')
 async def favicon():
@@ -569,14 +569,24 @@ async def answer(team_code: str=Form(...), question_id: int=Form(...), value: st
         score=conn.execute('SELECT score FROM teams WHERE team_code=?',(team_code,)).fetchone()['score']
     return JSONResponse({'ok':True,'correct':correct,'score':score})
 
+def reaction_counts() -> dict[str, int]:
+    with db() as conn:
+        rows=conn.execute('SELECT emoji, COUNT(*) AS c FROM reactions GROUP BY emoji').fetchall()
+    out={e:0 for e in REACTIONS}
+    for r in rows: out[r['emoji']]=int(r['c'])
+    return out
+
 @app.post('/api/reaction')
 async def reaction(team_code: str=Form(''),emoji: str=Form(...)):
     if emoji not in REACTIONS:return JSONResponse({'ok':False,'message':'Неизвестная реакция.'},status_code=400)
-    with db() as conn:conn.execute('INSERT INTO reactions(team_code,emoji,created_at) VALUES(?,?,?)',(team_code or None,emoji,now()))
-    return JSONResponse({'ok':True})
+    with db() as conn:
+        if team_code and not conn.execute('SELECT 1 FROM teams WHERE team_code=?',(team_code,)).fetchone():
+            return JSONResponse({'ok':False,'message':'Команда не найдена.'},status_code=404)
+        conn.execute('INSERT INTO reactions(team_code,emoji,created_at) VALUES(?,?,?)',(team_code or None,emoji,now()))
+    return JSONResponse({'ok':True,'emoji':emoji,'count':reaction_counts().get(emoji,0)})
 
 @app.get('/api/reactions')
 async def reactions(since: int=0):
     with db() as conn:
-        rows=conn.execute('SELECT id,emoji,created_at FROM reactions WHERE id>? ORDER BY id ASC LIMIT 100',(since,)).fetchall()
-    return JSONResponse({'reactions':[dict(r) for r in rows]})
+        rows=conn.execute('SELECT id,emoji,created_at FROM reactions WHERE id>? ORDER BY id ASC LIMIT 200',(since,)).fetchall()
+    return JSONResponse({'reactions':[dict(r) for r in rows],'counts':reaction_counts()})
