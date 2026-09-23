@@ -89,6 +89,8 @@
 <script>
 const $ = id => document.getElementById(id);
 let lastReaction = 0;
+let currentQrUrl = '';
+let lobbyRoomCode = '';
 
 async function api(url){
   const r = await fetch(url, {cache:'no-store'});
@@ -137,7 +139,11 @@ function renderQuestion(d){
   $('joinCode').textContent = s.room_code;
   const joinUrl = location.origin + '/play?code=' + encodeURIComponent(s.room_code);
   $('joinUrl').textContent = joinUrl;
-  $('qr').src = '/api/qr?url=' + encodeURIComponent(joinUrl) + '&t=' + Date.now();
+  const qrUrl = '/api/qr?url=' + encodeURIComponent(joinUrl);
+  if (currentQrUrl !== qrUrl) {
+    currentQrUrl = qrUrl;
+    $('qr').src = qrUrl;
+  }
   setCounts(d.reaction_counts || d.stats?.reaction_counts || {});
   $('participantCount').textContent = String((d.leaderboard || []).length);
 
@@ -154,9 +160,17 @@ function renderQuestion(d){
     $('round').textContent = '';
     $('qtext').textContent = waitingForPlayers ? 'Сканируйте QR-код и подключайтесь' : 'Игроки подключились — ждём старта';
     if (waitingForPlayers) {
-      $('qimage').innerHTML = `<div class="lobby-qr-wrap"><div class="lobby-qr-kicker">ПОДКЛЮЧИТЕСЬ К ИГРЕ</div><img class="lobby-qr" src="${esc($('qr').src)}" alt="QR-код для подключения"><div class="lobby-qr-code">КОД <b>${esc(s.room_code)}</b></div></div>`;
+      if (!$('lobbyQr')) {
+        $('qimage').innerHTML = `<div class="lobby-qr-wrap"><div class="lobby-qr-kicker">ПОДКЛЮЧИТЕСЬ К ИГРЕ</div><img id="lobbyQr" class="lobby-qr" alt="QR-код для подключения"><div class="lobby-qr-code">КОД <b id="lobbyQrCode"></b></div></div>`;
+      }
+      const lobbyQr = $('lobbyQr');
+      if (lobbyQr && lobbyQr.src !== location.origin + currentQrUrl) lobbyQr.src = currentQrUrl;
+      const lobbyQrCode = $('lobbyQrCode');
+      if (lobbyQrCode && lobbyQrCode.textContent !== String(s.room_code)) lobbyQrCode.textContent = String(s.room_code);
+      lobbyRoomCode = String(s.room_code);
     } else {
       $('qimage').innerHTML = '';
+      lobbyRoomCode = '';
     }
     document.body.classList.toggle('pre-join', waitingForPlayers);
     document.body.classList.toggle('no-image', !waitingForPlayers);
