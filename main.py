@@ -230,7 +230,7 @@ app.mount('/media',StaticFiles(directory=UPLOAD_DIR),name='media')
 templates=Jinja2Templates(directory=BASE_DIR/'templates')
 
 @app.get('/health')
-async def health():return JSONResponse({'ok':True,'version':'bothost-v8'})
+async def health():return JSONResponse({'ok':True,'version':'bothost-v9'})
 @app.get('/favicon.ico')
 async def favicon():return JSONResponse({},status_code=204)
 @app.get('/',response_class=HTMLResponse)
