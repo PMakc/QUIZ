@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <title>{{ settings.title }} — общий экран</title>
   <link rel="stylesheet" href="/static/style.css">
-  <link rel="stylesheet" href="/static/screen-v10.css">
+  <link rel="stylesheet" href="/static/screen-v11.css">
 </head>
 <body class="screen-v9">
 <main class="screen-shell">
@@ -28,8 +28,10 @@
       <div id="phase" class="phase-chip">ЖДЁМ ИГРОКОВ</div>
       <div id="round" class="round-line"></div>
 
-      <div class="question-wrap">
-        <h2 id="qtext" class="question-title">Сканируйте QR-код и подключайтесь</h2>
+      <div id="questionWrap" class="question-wrap">
+        <div class="question-copy">
+          <h2 id="qtext" class="question-title">Сканируйте QR-код и подключайтесь</h2>
+        </div>
         <div id="qimage" class="question-media"></div>
       </div>
 
@@ -37,8 +39,7 @@
       <div id="stats" class="stats-grid"></div>
 
       <div class="answer-footer">
-        <div id="explanation" class="explanation" hidden></div>
-        <div id="timer" class="main-timer">—</div>
+        <div id="timer" class="main-timer"><span id="timerValue" class="timer-value">—</span><span class="timer-unit">сек</span></div>
       </div>
     </div>
 
@@ -104,11 +105,11 @@ function setCounts(counts){
 }
 function renderStats(stats, q, phase){
   const box = $('stats');
-  box.innerHTML = '';
-  if (!stats?.total || !q?.options?.length) return;
+  box.innerHTML = "";
+  if (phase !== 'reveal' || !stats?.total || !q?.options?.length) return;
   box.innerHTML = stats.options.map(item => {
     const answers = Array.isArray(q.answer) ? q.answer.map(String) : [String(q.answer ?? '')];
-    const correct = phase !== 'question' && answers.includes(String(item.option));
+    const correct = answers.includes(String(item.option));
     return `<div class="stat-row ${correct ? 'correct-stat' : ''}">
       <div class="stat-label"><span>${esc(item.option)}</span><b>${item.percent}%</b></div>
       <div class="stat-track"><i style="width:${item.percent}%"></i></div>
@@ -152,30 +153,22 @@ function renderQuestion(d){
     $('round').textContent = '';
     $('qtext').textContent = 'Сканируйте QR-код и подключайтесь';
     $('qimage').innerHTML = '';
+    document.body.classList.add('no-image');
     $('options').innerHTML = '';
     $('stats').innerHTML = '';
-    $('explanation').hidden = true;
-    $('timer').textContent = '—';
+    updateTimer(0, false);
     return;
   }
 
-  $('phase').textContent = s.phase === 'question' ? 'ОТВЕЧАЙТЕ' : 'ОТВЕТ ОТКРЫТ';
+  $('phase').textContent = s.phase === 'question' ? 'ОТВЕЧАЙТЕ' : 'РЕЗУЛЬТАТ';
   $('round').textContent = 'Раунд ' + q.round_position + ' · ' + q.round_title + ' · Вопрос ' + q.position;
   $('qtext').textContent = q.text;
   $('qimage').innerHTML = q.image ? `<img class="screen-image" src="/media/${q.image}" alt="">` : '';
+  document.body.classList.toggle('no-image', !q.image);
   renderOptions(q, s.phase);
   renderStats(d.stats, q, s.phase);
 
-  if (s.phase !== 'question' && q.answer) {
-    const answer = Array.isArray(q.answer) ? q.answer.join(', ') : q.answer;
-    $('explanation').hidden = false;
-    $('explanation').innerHTML = `<strong>Правильный ответ</strong><span>${esc(answer)}</span>${q.explanation ? `<p>${esc(q.explanation)}</p>` : ''}`;
-  } else {
-    $('explanation').hidden = true;
-  }
-  $('timer').textContent = s.phase === 'question'
-    ? Math.max(0, Math.ceil((s.deadline * 1000 - Date.now()) / 1000)) + 'с'
-    : 'ОТВЕТ';
+  updateTimer(s.phase === 'question' ? Math.max(0, Math.ceil((s.deadline * 1000 - Date.now()) / 1000)) : 0, s.phase === 'question');
 }
 function showFinish(list){
   $('stageGame').style.display = 'none';
@@ -184,6 +177,17 @@ function showFinish(list){
     <span>#${i+1}</span><b>${esc(x.team_name)}</b><strong>${x.score}</strong><small>баллов</small>
   </div>`).join('');
   $('board').innerHTML = list.map((x,i) => `<div class="finish-row"><span>#${i+1}</span><b>${esc(x.team_name)}</b><strong>${x.score}</strong></div>`).join('');
+}
+function updateTimer(seconds, active){
+  const el = $('timer');
+  const value = $('timerValue');
+  if (!el || !value) return;
+  const total = 45;
+  const safe = Math.max(0, Math.min(total, Number(seconds) || 0));
+  const progress = active ? (safe / total) * 100 : 0;
+  el.style.setProperty('--timer-progress', progress.toFixed(1));
+  value.textContent = active ? String(safe) : '✓';
+  el.classList.toggle('timer-done', !active);
 }
 async function poll(){
   try {
@@ -210,7 +214,7 @@ setInterval(async () => {
   try {
     const d = await api('/api/state');
     if (d.state.phase === 'question') {
-      $('timer').textContent = Math.max(0, Math.ceil((d.state.deadline * 1000 - Date.now()) / 1000)) + 'с';
+      updateTimer(Math.max(0, Math.ceil((d.state.deadline * 1000 - Date.now()) / 1000)), true);
     }
   } catch {}
 }, 200);
