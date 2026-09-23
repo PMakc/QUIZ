@@ -1,9 +1,218 @@
-<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{{ settings.title }} — экран</title><link rel="stylesheet" href="/static/style.css"></head><body class="screen-page"><main class="stage"><header class="stage-head"><div><div class="eyebrow">{{ settings.subtitle }}</div><h1>{{ settings.title }}</h1></div><div class="stage-code"><small>КОД</small><b id="room">—</b></div></header><section id="stageGame" class="stage-game"><div id="phase" class="stage-phase">ЖДЁМ ИГРОКОВ</div><div id="round" class="stage-round"></div><h2 id="qtext">Сканируйте QR-код и подключайтесь</h2><div id="qimage"></div><div id="options" class="stage-options"></div><div id="stats" class="stage-stats"></div><div id="explanation" class="stage-explanation" hidden></div><div id="timer" class="stage-timer">—</div></section><aside class="join-card"><div>СКАНИРУЙТЕ ДЛЯ ВХОДА</div><img id="qr"><b id="joinCode">—</b><small id="joinUrl">—</small></aside><div id="reactions" class="reaction-layer"></div><div class="reaction-counts"><span>👍 <b id="rc-👍">0</b></span><span>😊 <b id="rc-😊">0</b></span><span>❤️ <b id="rc-❤️">0</b></span><span>🔥 <b id="rc-🔥">0</b></span></div><section id="finish" class="finish" hidden><div class="eyebrow">ИТОГИ</div><h2>Результаты</h2><div id="podium" class="podium"></div><div id="board" class="board"></div></section></main><script>
-const $=id=>document.getElementById(id);let lastReaction=0;let lastQid=null,lastPhase=null;
-async function api(u){const r=await fetch(u);return r.json()}
-function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
-function showStats(stats,q,s){const box=$('stats');box.innerHTML='';if(s.phase==='question')return;if(!stats||!stats.total||!q||!q.options?.length)return;box.innerHTML=stats.options.map(o=>{const correct=s.phase!=='question'&&Array.isArray(q.answer)?q.answer.includes(o.option):(s.phase!=='question'&&q.answer===o.option);return `<div class="stat-line"><span>${esc(o.option)}</span><div class="bar"><i style="width:${o.percent}%"></i></div><b>${o.percent}%</b></div>`}).join('')}
-function render(d){const s=d.state,q=d.question;$('room').textContent=s.room_code;$('joinCode').textContent=s.room_code;const url=location.origin+'/play?code='+s.room_code;$('joinUrl').textContent=url;$('qr').src='/api/qr?url='+encodeURIComponent(url)+'&t='+Date.now();for(const e of ['👍','😊','❤️','🔥'])$('rc-'+e).textContent=d.reaction_counts?.[e]||0;if(s.phase==='finished'){showFinish(d.leaderboard);return}$('finish').hidden=true;$('stageGame').style.display='flex';if(!q){$('phase').textContent='ЖДЁМ ИГРОКОВ';$('round').textContent='';$('qtext').textContent='Сканируйте QR-код и подключайтесь';$('qimage').innerHTML='';$('options').innerHTML='';$('stats').innerHTML='';$('explanation').hidden=true;$('timer').textContent='—';return}$('phase').textContent=s.phase==='question'?'ОТВЕЧАЙТЕ':'ПРАВИЛЬНЫЙ ОТВЕТ';$('round').textContent='Раунд '+q.round_position+' · '+q.round_title+' · Вопрос '+q.position;$('qtext').textContent=q.text;$('qimage').innerHTML=q.image?`<img class="screen-image" src="/media/${q.image}">`:'';const answers=Array.isArray(q.answer)?q.answer:[q.answer];$('options').innerHTML=(q.options||[]).map((o,i)=>{const isCorrect=s.phase!=='question'&&answers.map(String).includes(String(o));return `<div class="stage-option ${isCorrect?'correct':''}"><span>${String.fromCharCode(65+i)}</span><b>${esc(o)}</b></div>`}).join('');showStats(s.phase!=='question'?d.stats:null,q,s);if(s.phase!=='question'&&q.answer){$('explanation').hidden=false;$('explanation').innerHTML='<strong>Правильный ответ:</strong> '+esc(Array.isArray(q.answer)?q.answer.join(', '):q.answer)+'<p>'+esc(q.explanation||'')+'</p>'}else $('explanation').hidden=true;$('timer').textContent=s.phase==='question'?Math.max(0,Math.ceil((s.deadline*1000-Date.now())/1000))+'с':'ОТВЕТ';lastQid=q.id;lastPhase=s.phase}
-function showFinish(list){$('stageGame').style.display='none';$('finish').hidden=false;$('podium').innerHTML=list.slice(0,3).map((x,i)=>`<div class="podium-card"><small>#${i+1}</small><b>${esc(x.team_name)}</b><strong>${x.score}</strong></div>`).join('');$('board').innerHTML=list.map((x,i)=>`<div class="board-row"><span>#${i+1}</span><b>${esc(x.team_name)}</b><strong>${x.score}</strong></div>`).join('')}
-async function poll(){try{const d=await api('/api/state');render(d);const rr=await api('/api/reactions?since='+lastReaction);for(const r of rr.reactions){lastReaction=r.id;const n=document.createElement('div');n.className='reaction-float';n.textContent=r.emoji;n.style.setProperty('--dx',(Math.random()*120-60)+'px');$('reactions').appendChild(n);setTimeout(()=>n.remove(),1500)}for(const e of ['👍','😊','❤️','🔥'])$('rc-'+e).textContent=rr.counts?.[e]||0}catch(e){console.error(e)}}poll();setInterval(poll,700);setInterval(async()=>{const d=await api('/api/state');if(d.state.phase==='question')$('timer').textContent=Math.max(0,Math.ceil((d.state.deadline*1000-Date.now())/1000))+'с'},200)
-</script></body></html>
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>{{ settings.title }} — общий экран</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <link rel="stylesheet" href="/static/screen-v9.css">
+</head>
+<body class="screen-v9">
+<main class="screen-shell">
+  <header class="screen-header">
+    <div class="brand-block">
+      <div class="screen-logo">Q</div>
+      <div>
+        <div class="eyebrow">{{ settings.subtitle }}</div>
+        <h1>{{ settings.title }}</h1>
+      </div>
+    </div>
+    <div class="header-status">
+      <div class="header-status-label">КОД ИГРЫ</div>
+      <div id="room" class="header-code">—</div>
+    </div>
+  </header>
+
+  <section id="stageGame" class="screen-content">
+    <div class="screen-main">
+      <div id="phase" class="phase-chip">ЖДЁМ ИГРОКОВ</div>
+      <div id="round" class="round-line"></div>
+
+      <div class="question-wrap">
+        <h2 id="qtext" class="question-title">Сканируйте QR-код и подключайтесь</h2>
+        <div id="qimage" class="question-media"></div>
+      </div>
+
+      <div id="options" class="options-grid"></div>
+      <div id="stats" class="stats-grid"></div>
+
+      <div class="answer-footer">
+        <div id="explanation" class="explanation" hidden></div>
+        <div id="timer" class="main-timer">—</div>
+      </div>
+    </div>
+
+    <aside class="screen-rail">
+      <section class="rail-card join-panel">
+        <div class="rail-kicker">ПОДКЛЮЧЕНИЕ</div>
+        <div class="join-title">Сканируйте QR-код</div>
+        <img id="qr" class="qr-image" alt="QR-код для подключения">
+        <div id="joinCode" class="join-code">—</div>
+        <div id="joinUrl" class="join-url">—</div>
+      </section>
+
+      <section class="rail-card reactions-panel">
+        <div class="rail-card-head">
+          <div>
+            <div class="rail-kicker">РЕАКЦИИ</div>
+            <div class="rail-title">В прямом эфире</div>
+          </div>
+          <div class="live-dot"><span></span> LIVE</div>
+        </div>
+        <div class="reaction-grid">
+          <div class="reaction-stat"><span>👍</span><b id="rc-👍">0</b></div>
+          <div class="reaction-stat"><span>😊</span><b id="rc-😊">0</b></div>
+          <div class="reaction-stat"><span>❤️</span><b id="rc-❤️">0</b></div>
+          <div class="reaction-stat"><span>🔥</span><b id="rc-🔥">0</b></div>
+        </div>
+      </section>
+
+      <section class="rail-card answer-panel">
+        <div class="rail-kicker">УЧАСТНИКИ</div>
+        <div id="participantCount" class="participant-count">0</div>
+        <div class="participant-caption">подключились</div>
+      </section>
+    </aside>
+  </section>
+
+  <section id="finish" class="finish-screen" hidden>
+    <div class="finish-kicker">ИТОГИ КВИЗА</div>
+    <h2>Результаты</h2>
+    <div id="podium" class="podium"></div>
+    <div id="board" class="finish-board"></div>
+  </section>
+
+  <div id="reactions" class="reaction-layer" aria-hidden="true"></div>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+let lastReaction = 0;
+
+async function api(url){
+  const r = await fetch(url, {cache:'no-store'});
+  return r.json();
+}
+function esc(s){
+  return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function setCounts(counts){
+  for (const emoji of ['👍','😊','❤️','🔥']) {
+    const el = $('rc-'+emoji);
+    if (el) el.textContent = String(counts?.[emoji] ?? 0);
+  }
+}
+function renderStats(stats, q, phase){
+  const box = $('stats');
+  box.innerHTML = '';
+  if (!stats?.total || !q?.options?.length) return;
+  box.innerHTML = stats.options.map(item => {
+    const answers = Array.isArray(q.answer) ? q.answer.map(String) : [String(q.answer ?? '')];
+    const correct = phase !== 'question' && answers.includes(String(item.option));
+    return `<div class="stat-row ${correct ? 'correct-stat' : ''}">
+      <div class="stat-label"><span>${esc(item.option)}</span><b>${item.percent}%</b></div>
+      <div class="stat-track"><i style="width:${item.percent}%"></i></div>
+    </div>`;
+  }).join('');
+}
+function renderOptions(q, phase){
+  const box = $('options');
+  box.innerHTML = '';
+  if (!q?.options?.length) return;
+  const answers = Array.isArray(q.answer) ? q.answer.map(String) : [String(q.answer ?? '')];
+  box.innerHTML = q.options.map((opt, i) => {
+    const correct = phase !== 'question' && answers.includes(String(opt));
+    return `<div class="screen-option ${correct ? 'correct' : ''}">
+      <span class="option-letter">${String.fromCharCode(65+i)}</span>
+      <b>${esc(opt)}</b>
+      ${correct ? '<span class="correct-mark">✓</span>' : ''}
+    </div>`;
+  }).join('');
+}
+function renderQuestion(d){
+  const s = d.state;
+  const q = d.question;
+  $('room').textContent = s.room_code;
+  $('joinCode').textContent = s.room_code;
+  const joinUrl = location.origin + '/play?code=' + encodeURIComponent(s.room_code);
+  $('joinUrl').textContent = joinUrl;
+  $('qr').src = '/api/qr?url=' + encodeURIComponent(joinUrl) + '&t=' + Date.now();
+  setCounts(d.reaction_counts || d.stats?.reaction_counts || {});
+  $('participantCount').textContent = String((d.leaderboard || []).length);
+
+  if (s.phase === 'finished') {
+    showFinish(d.leaderboard || []);
+    return;
+  }
+  $('finish').hidden = true;
+  $('stageGame').style.display = 'grid';
+
+  if (!q) {
+    $('phase').textContent = 'ЖДЁМ ИГРОКОВ';
+    $('round').textContent = '';
+    $('qtext').textContent = 'Сканируйте QR-код и подключайтесь';
+    $('qimage').innerHTML = '';
+    $('options').innerHTML = '';
+    $('stats').innerHTML = '';
+    $('explanation').hidden = true;
+    $('timer').textContent = '—';
+    return;
+  }
+
+  $('phase').textContent = s.phase === 'question' ? 'ОТВЕЧАЙТЕ' : 'ОТВЕТ ОТКРЫТ';
+  $('round').textContent = 'Раунд ' + q.round_position + ' · ' + q.round_title + ' · Вопрос ' + q.position;
+  $('qtext').textContent = q.text;
+  $('qimage').innerHTML = q.image ? `<img class="screen-image" src="/media/${q.image}" alt="">` : '';
+  renderOptions(q, s.phase);
+  renderStats(d.stats, q, s.phase);
+
+  if (s.phase !== 'question' && q.answer) {
+    const answer = Array.isArray(q.answer) ? q.answer.join(', ') : q.answer;
+    $('explanation').hidden = false;
+    $('explanation').innerHTML = `<strong>Правильный ответ</strong><span>${esc(answer)}</span>${q.explanation ? `<p>${esc(q.explanation)}</p>` : ''}`;
+  } else {
+    $('explanation').hidden = true;
+  }
+  $('timer').textContent = s.phase === 'question'
+    ? Math.max(0, Math.ceil((s.deadline * 1000 - Date.now()) / 1000)) + 'с'
+    : 'ОТВЕТ';
+}
+function showFinish(list){
+  $('stageGame').style.display = 'none';
+  $('finish').hidden = false;
+  $('podium').innerHTML = list.slice(0,3).map((x,i) => `<div class="podium-card p${i+1}">
+    <span>#${i+1}</span><b>${esc(x.team_name)}</b><strong>${x.score}</strong><small>баллов</small>
+  </div>`).join('');
+  $('board').innerHTML = list.map((x,i) => `<div class="finish-row"><span>#${i+1}</span><b>${esc(x.team_name)}</b><strong>${x.score}</strong></div>`).join('');
+}
+async function poll(){
+  try {
+    const d = await api('/api/state');
+    renderQuestion(d);
+    const rr = await api('/api/reactions?since=' + lastReaction);
+    setCounts(rr.counts || {});
+    for (const r of (rr.reactions || [])) {
+      lastReaction = r.id;
+      const n = document.createElement('div');
+      n.className = 'reaction-float';
+      n.textContent = r.emoji;
+      n.style.setProperty('--dx', (Math.random()*160 - 80) + 'px');
+      $('reactions').appendChild(n);
+      setTimeout(() => n.remove(), 1450);
+    }
+  } catch(e) {
+    console.error(e);
+  }
+}
+poll();
+setInterval(poll, 900);
+setInterval(async () => {
+  try {
+    const d = await api('/api/state');
+    if (d.state.phase === 'question') {
+      $('timer').textContent = Math.max(0, Math.ceil((d.state.deadline * 1000 - Date.now()) / 1000)) + 'с';
+    }
+  } catch {}
+}, 200);
+</script>
+</body></html>
