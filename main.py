@@ -258,20 +258,25 @@ def check_admin(request: Request):
 
 @app.get('/health')
 async def health():
-    return JSONResponse({'ok': True, 'version': 'bothost-v4'})
+    return JSONResponse({'ok': True, 'version': 'bothost-v5'})
+
+
+@app.get('/favicon.ico')
+async def favicon():
+    return JSONResponse({}, status_code=204)
 
 
 @app.get('/', response_class=HTMLResponse)
 async def index(request: Request):
     state = get_state()
-    return templates.TemplateResponse('index.html', {'request': request, 'state': state, 'question_time': QUESTION_TIME})
+    return templates.TemplateResponse(request=request, name='index.html', context={'state': state, 'question_time': QUESTION_TIME})
 
 
 @app.get('/admin', response_class=HTMLResponse)
 async def admin(request: Request):
     if request.cookies.get('admin_ok') != '1':
-        return templates.TemplateResponse('admin_login.html', {'request': request})
-    return templates.TemplateResponse('admin.html', {'request': request, 'question_time': QUESTION_TIME, 'question_count': TOTAL_QUESTIONS})
+        return templates.TemplateResponse(request=request, name='admin_login.html', context={})
+    return templates.TemplateResponse(request=request, name='admin.html', context={'question_time': QUESTION_TIME, 'question_count': TOTAL_QUESTIONS})
 
 
 @app.post('/admin/login')
