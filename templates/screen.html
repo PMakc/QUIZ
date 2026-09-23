@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <title>{{ settings.title }} — общий экран</title>
   <link rel="stylesheet" href="/static/style.css">
-  <link rel="stylesheet" href="/static/screen-v11.css">
+  <link rel="stylesheet" href="/static/screen-v12.css">
 </head>
 <body class="screen-v9">
 <main class="screen-shell">
@@ -149,16 +149,23 @@ function renderQuestion(d){
   $('stageGame').style.display = 'grid';
 
   if (!q) {
+    const waitingForPlayers = (d.leaderboard || []).length === 0;
     $('phase').textContent = 'ЖДЁМ ИГРОКОВ';
     $('round').textContent = '';
-    $('qtext').textContent = 'Сканируйте QR-код и подключайтесь';
-    $('qimage').innerHTML = '';
-    document.body.classList.add('no-image');
+    $('qtext').textContent = waitingForPlayers ? 'Сканируйте QR-код и подключайтесь' : 'Игроки подключились — ждём старта';
+    if (waitingForPlayers) {
+      $('qimage').innerHTML = `<div class="lobby-qr-wrap"><div class="lobby-qr-kicker">ПОДКЛЮЧИТЕСЬ К ИГРЕ</div><img class="lobby-qr" src="${esc($('qr').src)}" alt="QR-код для подключения"><div class="lobby-qr-code">КОД <b>${esc(s.room_code)}</b></div></div>`;
+    } else {
+      $('qimage').innerHTML = '';
+    }
+    document.body.classList.toggle('pre-join', waitingForPlayers);
+    document.body.classList.toggle('no-image', !waitingForPlayers);
     $('options').innerHTML = '';
     $('stats').innerHTML = '';
     updateTimer(0, false);
     return;
   }
+  document.body.classList.remove('pre-join');
 
   $('phase').textContent = s.phase === 'question' ? 'ОТВЕЧАЙТЕ' : 'РЕЗУЛЬТАТ';
   $('round').textContent = 'Раунд ' + q.round_position + ' · ' + q.round_title + ' · Вопрос ' + q.position;
